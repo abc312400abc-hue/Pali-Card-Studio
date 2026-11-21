@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1f4d4a">
+<title>Pāli Card Studio</title>
+<style>
+:root{--bg:#eef1ec;--ink:#1c2b2a;--mut:#5d6c69;--cd:#fff;--ln:#d3dbd5;--pri:#1f4d4a;--onp:#fff;--ok:#2e7d4f;--wn:#a96a0c;--er:#b3362f}
+@media(prefers-color-scheme:dark){:root{--bg:#141b1a;--ink:#e6ece8;--mut:#9aaaa6;--cd:#1e2827;--ln:#34423f;--pri:#6fb7ae;--onp:#0f1a19;--ok:#5cc08a;--wn:#e0a73a;--er:#ef7f77}}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Noto Sans SC",sans-serif;padding-bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+header{display:flex;justify-content:space-between;align-items:baseline;padding:calc(12px + env(safe-area-inset-top,0px)) 16px 10px;background:var(--pri);color:var(--onp);font:600 18px "Noto Serif",Georgia,serif}header small{font:13px system-ui}
+.pg{display:none;padding:14px}.pg.on{display:block}
+input,textarea{width:100%;padding:9px 10px;border:1px solid var(--ln);border-radius:8px;background:var(--cd);color:var(--ink);font:inherit}
+textarea{min-height:240px;font:14px/1.5 ui-monospace,Menlo,"Noto Sans Mono",monospace}
+.btn{border:0;background:var(--pri);color:var(--onp);padding:11px 14px;border-radius:8px;font:600 15px inherit;font-family:inherit}
+.btn.big{width:100%;padding:14px;font-size:17px}.btn.s{background:transparent;color:var(--pri);border:1px solid var(--pri)}.btn.d{background:var(--er);color:#fff}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.bar>*{flex:1 1 auto}
+.row{background:var(--cd);border:1px solid var(--ln);border-radius:8px;padding:9px 12px;margin:6px 0}.row b{font:600 17px "Noto Serif",Georgia,serif}.row div{color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cd{background:var(--cd);border:1px solid var(--ln);border-radius:8px;padding:10px;margin:8px 0}.cd.bad{border-color:var(--er)}
+.is{font-size:14px;padding:4px 0}.is.error{color:var(--er)}.is.ok{color:var(--ok)}.is.warn{color:var(--wn)}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 3px}.muted{color:var(--mut);font-size:13px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--cd);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;border:0;background:none;padding:13px 2px;color:var(--mut);font-size:15px}nav button.on{color:var(--pri);font-weight:700;box-shadow:inset 0 3px var(--pri)}
+#md{position:fixed;inset:0;background:var(--bg);overflow:auto;padding:calc(12px + env(safe-area-inset-top,0px)) 14px 40px;z-index:5}
+#tt{position:fixed;left:12px;right:12px;bottom:calc(76px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;z-index:9}#tt.bad{background:var(--er);color:#fff}
+</style></head><body>
+<header>Pāli Card Studio<small id="cnt"></small></header>
+
+<section class="pg on" id="p-add">
+ <p class="muted">① 让 ChatGPT 按格式生成卡片　② 整段粘贴到下面　③ 点「检查并保存」。符合格式的会自动保存；有问题的会告诉你哪里错了，并留在输入框里等你修改。</p>
+ <textarea id="in" placeholder="在这里粘贴卡片文字（可以一次粘贴很多张）"></textarea>
+ <div class="bar"><button class="btn big" id="go">检查并保存</button></div>
+ <div id="res"></div>
+ <div class="bar"><button class="btn s" id="cp">复制「给 ChatGPT 的格式说明」</button><button class="btn s" id="ex">插入示例</button></div>
+ <p class="muted">第一次使用：先点上面的「复制给 ChatGPT 的格式说明」，粘贴给 ChatGPT，之后它就会按这个格式输出。输入框的内容会自动保存，关掉 App 也不会丢。</p>
+</section>
+
+<section class="pg" id="p-lib">
+ <input id="q" placeholder="搜索词头、释义、ID"><p class="muted" id="lc"></p>
+ <div id="list"></div><button class="btn s" id="more" hidden style="width:100%">显示更多</button>
+</section>
+
+<section class="pg" id="p-exp">
+ <p class="muted" id="xinfo"></p>
+ <label>词汇包名称 packageId（英文，如 pali-basic-001）</label><input id="xid">
+ <label>版本号（如 1.0.0；以后更新就改成 1.1.0）</label><input id="xv">
+ <div class="bar"><button class="btn big" id="xd">检查并导出 JSON</button></div>
+ <div id="xr"></div>
+ <h3 style="margin-top:24px;font-size:15px">备份（防止手机数据被清除）</h3>
+ <div class="bar"><button class="btn s" id="bk">备份全部卡片</button><button class="btn s" id="rb">从备份恢复</button></div><input type="file" id="rf" accept=".json,application/json" hidden>
+</section>
+
+<div id="md" hidden>
+ <div class="bar"><button class="btn s" id="mc">← 返回</button></div>
+ <div id="mdi"></div>
+ <label>卡片文字（可直接修改，ID 不能改）</label><textarea id="mr" style="min-height:320px"></textarea>
+ <div class="bar"><button class="btn" id="ms">检查并保存修改</button><button class="btn d" id="mdl">删除这张卡片</button></div>
+</div>
+<div id="tt" hidden></div>
+<nav><button data-p="add" class="on">添加</button><button data-p="lib">已存卡片</button><button data-p="exp">导出</button></nav>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const FIELDS=['ID','HEADWORD','DISPLAY','MEANING','PART_OF_SPEECH','CATEGORY','HINT','CORE','EXPLANATION','STORY','MORPHOLOGY','SENSES','USAGE','RELATIONS','PROVENANCE','CONTENT_STATUS','ACTIVE'];
+const NONEMPTY=['ID','HEADWORD','DISPLAY','MEANING','PART_OF_SPEECH','CORE','EXPLANATION','STORY','MORPHOLOGY','SENSES','USAGE','CONTENT_STATUS','ACTIVE'],PRESENT=['RELATIONS','PROVENANCE'];
+const RT=['synonym','antonym','derivation','collocation','semantic','teaching','contrast'],VS=['verified','needs-review','teaching-example'];
+const ID_RE=/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,79}$/,now=()=>new Date().toISOString(),fmt=t=>t?new Date(t).toLocaleString():'还没有导出过';
+const SAMPLE=`===PALI_CARD_V1===
+@ID: jati
+@HEADWORD: jāti
+@DISPLAY: jāti
+@MEANING: 出生；生
+@PART_OF_SPEECH: 阴性名词
+@CATEGORY: 十二因缘
+@CORE: 指生命的出生、生起。
+@EXPLANATION: 第一段说明。
+
+第二段说明（空行会保留）。
+@STORY: 教学故事示例。
+@MORPHOLOGY:
+root: jan
+formation: jan + ti
+notes: 格式示例，需核验
+@SENSES:
+- 出生 | 一般义
+- 种类 | 引申义
+@USAGE:
+---
+pali: jāti dukkhā.
+trans: 出生是苦。
+status: teaching-example
+collection: 教学示例
+ref: 无
+---
+@RELATIONS:
+- teaching | jara | 老 | 教学关联，非构词关系
+@PROVENANCE:
+- 作者整理 | 格式示例，未经核验
+@CONTENT_STATUS: draft
+@ACTIVE: true
+===END===`;
+const GPT=`请严格按下面的 PALI_CARD_V1 格式输出巴利语词汇卡片。每张卡片一个完整区块；不要输出区块以外的任何文字，不要用代码块包裹。
+规则：
+1. 区块以 ===PALI_CARD_V1=== 开始，以 ===END=== 结束，各占一行。
+2. 字段名独占行首，写成「@字段名: 内容」，内容可以多行、多段。必须包含这些字段：ID、HEADWORD、DISPLAY、MEANING、PART_OF_SPEECH、CORE、EXPLANATION、STORY、MORPHOLOGY、SENSES、USAGE、RELATIONS、PROVENANCE、CONTENT_STATUS、ACTIVE（可选：CATEGORY、HINT）。
+3. ID 只用英文字母、数字、点、下划线、连字符，2–80 个字符，确定后不再更改。
+4. MORPHOLOGY：每行「键: 值」，notes 可以重复多行。
+5. SENSES：每条一行「- 释义 | 说明」。
+6. USAGE：每条例句之间用单独一行 --- 分隔；每条含 pali:、trans:、status:（verified / needs-review / teaching-example）、collection:、ref:，可选 segment:、url:。status 为 verified 时 collection 和 ref 必须填写。不要编造经文出处，没核实的写 needs-review。
+7. RELATIONS：每条一行「- 类型 | 目标ID | 标签 | 备注」。类型只能是 synonym、antonym、derivation、collocation、semantic、teaching、contrast。教学关联用 teaching，不要当作构词关系。没有就留空，但 @RELATIONS: 这一行要保留。
+8. PROVENANCE：每条一行「- 来源 | 备注」，没有就留空，但这一行要保留。
+9. ACTIVE 写 true 或 false。
+10. 如果某行正文恰好以 @大写字母: 开头，前面加反斜杠 \\ 。
+完整示例：
+
+`+SAMPLE;
+
+/*PARSER*/
+function splitBlocks(text){const out=[],stray=[];let cur=null;
+ text.replace(/\r\n?/g,'\n').split('\n').forEach(ln=>{const t=ln.trim();
+  if(/^`{3}/.test(t))return;
+  if(t==='===PALI_CARD_V1==='){if(cur){cur.err='缺少结束标记 ===END===（下一张卡片的开始标记来得太早）';out.push(cur)}cur={lines:[]};return}
+  if(t==='===END==='){if(cur){out.push(cur);cur=null}else stray.push('===END===');return}
+  if(cur)cur.lines.push(ln);else if(t)stray.push(t)});
+ if(cur){cur.err='缺少结束标记 ===END===';out.push(cur)}
+ out.forEach(b=>b.raw='===PALI_CARD_V1===\n'+b.lines.join('\n').replace(/^\n+|\n+$/g,'')+(b.err?'':'\n===END==='));return{out,stray}}
+function items(t){const a=[];let bad=false;t.split('\n').forEach(l=>{if(/^- /.test(l))a.push(l.slice(2));else if(l.trim()){if(a.length)a[a.length-1]+='\n'+l;else bad=true}});return{a:a.map(x=>x.trim()),bad}}
+function parseBlock(b){const E=[],f={};let k=null;
+ b.lines.forEach(ln=>{const m=ln.match(/^@([A-Za-z_]+):[ \t]?(.*)$/);
+  if(m&&FIELDS.includes(m[1])){k=m[1];if(f[k])E.push('@'+k+' 出现了两次');f[k]=[m[2]]}
+  else if(m&&/^[A-Z_]+$/.test(m[1]))E.push('不认识的字段 @'+m[1]+'（拼写错了？如果这是正文，请在行首加反斜杠 \\）');
+  else if(k)f[k].push(ln.startsWith('\\@')?ln.slice(1):ln);
+  else if(ln.trim())E.push('第一个字段之前有多余文字：'+ln.trim().slice(0,20))});
+ const T={};for(const x in f)T[x]=f[x].join('\n').trim().normalize('NFC');
+ NONEMPTY.forEach(x=>{if(T[x]===undefined)E.push('缺少 @'+x+'（没有找到以 @'+x+': 开头的行）');else if(!T[x])E.push('@'+x+' 没有内容')});
+ PRESENT.forEach(x=>{if(T[x]===undefined)E.push('缺少 @'+x+'（没有内容也要保留这一行）')});
+ const s=x=>T[x]||'';
+ const d={id:s('ID'),headword:s('HEADWORD'),display:s('DISPLAY'),meaning:s('MEANING'),category:s('CATEGORY'),hint:s('HINT'),partOfSpeech:s('PART_OF_SPEECH'),core:s('CORE'),explanation:s('EXPLANATION'),story:s('STORY'),morphology:{},senses:[],usage:[],relations:[],provenance:[],contentStatus:s('CONTENT_STATUS'),active:true};
+ if(d.id&&!ID_RE.test(d.id))E.push('ID “'+d.id+'” 不合规：只能用英文字母、数字、. _ -，长度 2–80');
+ const L=(x,fn)=>{if(!T[x])return;const r=items(T[x]);if(r.bad)E.push('@'+x+' 格式不正确：每条要以「- 」开头');r.a.forEach(fn)},P=v=>v.split('|').map(x=>x.trim());
+ L('SENSES',(v,i)=>{const p=P(v);if(!p[0])E.push('SENSES 第 '+(i+1)+' 条缺少释义');else d.senses.push({meaning:p[0],note:p[1]||''})});
+ L('PROVENANCE',(v,i)=>{const p=P(v);if(!p[0])E.push('PROVENANCE 第 '+(i+1)+' 条缺少来源');else d.provenance.push({source:p[0],note:p[1]||''})});
+ const seen=new Set();
+ L('RELATIONS',(v,i)=>{const p=P(v),n='RELATIONS 第 '+(i+1)+' 条';
+  if(!p[0]||!p[1]){E.push(n+'格式不正确，应为「- 类型 | 目标ID | 标签 | 备注」');return}
+  if(!RT.includes(p[0]))E.push(n+'：关系类型 “'+p[0]+'” 不合法，只能是 '+RT.join(' / '));
+  if(!ID_RE.test(p[1]))E.push(n+'：目标 ID “'+p[1]+'” 格式不正确');
+  if(seen.has(p[0]+'|'+p[1]))E.push(n+'：与前面重复');seen.add(p[0]+'|'+p[1]);
+  d.relations.push({type:p[0],targetId:p[1],label:p[2]||'',note:p[3]||''})});
+ if(T.MORPHOLOGY){let mk=null;T.MORPHOLOGY.split('\n').forEach(l=>{const m=l.match(/^([A-Za-z_]+):[ \t]*(.*)$/);
+  if(m){mk=m[1];if(mk==='notes')(d.morphology.notes=d.morphology.notes||[]).push(m[2]);else d.morphology[mk]=(m[2]===''||m[2]==='null')?null:m[2]}
+  else if(l.trim()){if(mk==='notes'){const n=d.morphology.notes;n[n.length-1]+='\n'+l}else if(mk&&d.morphology[mk]!=null)d.morphology[mk]+='\n'+l;else E.push('MORPHOLOGY 格式不正确：每行应为「键: 值」，出错处：'+l.trim().slice(0,20))}})}
+ if(T.USAGE){let cur=null,uk=null;const U=[];
+  T.USAGE.split('\n').forEach(l=>{if(/^---\s*$/.test(l)){cur=null;uk=null;return}
+   const m=l.match(/^(pali|trans|status|collection|ref|segment|url):[ \t]?(.*)$/);
+   if(m){if(!cur||cur[m[1]]!==undefined){cur={};U.push(cur)}uk=m[1];cur[uk]=m[2]}
+   else if(cur&&uk)cur[uk]+='\n'+l;else if(l.trim())E.push('USAGE 格式不正确，出错处：'+l.trim().slice(0,20))});
+  U.forEach((u,i)=>{const g=x=>(u[x]||'').trim(),n='USAGE 第 '+(i+1)+' 条',st=g('status')||'needs-review';
+   if(!g('pali'))E.push(n+'缺少 pali:（巴利语原文）');if(!g('trans'))E.push(n+'缺少 trans:（翻译）');
+   if(!VS.includes(st))E.push(n+'：status “'+st+'” 不合法，只能是 '+VS.join(' / '));
+   if(st==='verified'&&!(g('collection')&&g('ref')))E.push(n+'标记为 verified，但缺少 collection:（经典名称）或 ref:（经文编号）');
+   d.usage.push({paliText:g('pali'),translation:g('trans'),verificationStatus:st,source:{collection:g('collection'),reference:g('ref'),segmentId:g('segment'),url:g('url')}})})}
+ if(T.ACTIVE){const v=T.ACTIVE.toLowerCase();if(v==='true')d.active=true;else if(v==='false')d.active=false;else E.push('@ACTIVE 必须写 true 或 false')}
+ return{d,E}}
+function parseAll(text){const{out,stray}=splitBlocks(text);
+ return{stray,res:out.map((b,i)=>{const r=b.err?{d:null,E:[b.err]}:parseBlock(b);return{n:i+1,raw:b.raw,...r}})}}
+/*END PARSER*/
+
+/* ---------- 本地数据库 ---------- */
+let db,C=[],LIM=100,CUR=null,tm;
+const open=()=>new Promise((ok,no)=>{const r=indexedDB.open('pali-card-studio',1);r.onupgradeneeded=()=>{r.result.createObjectStore('cards',{keyPath:'card_id'});r.result.createObjectStore('kv')};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const tx=(st,mode,fn)=>new Promise((ok,no)=>{try{const t=db.transaction(st,mode);const o=fn(t.objectStore(st));t.oncomplete=()=>ok(o instanceof IDBRequest?o.result:undefined);t.onerror=t.onabort=()=>no(t.error||new Error('写入失败'))}catch(e){no(e)}});
+const putMany=a=>tx('cards','readwrite',s=>{a.forEach(c=>s.put(c))}),kvGet=k=>tx('kv','readonly',s=>s.get(k)),kvSet=(k,v)=>tx('kv','readwrite',s=>s.put(v,k));
+function toast(m,bad){const t=$('#tt');t.textContent=m;t.className=bad?'bad':'';t.hidden=false;clearTimeout(t.h);t.h=setTimeout(()=>t.hidden=true,bad?7000:2500)}
+async function load(){try{C=await tx('cards','readonly',s=>s.getAll());C.sort((a,b)=>b.created.localeCompare(a.created))}catch(e){toast('读取失败：'+e.message,1)}render()}
+
+/* ---------- 添加 ---------- */
+$('#in').oninput=()=>{clearTimeout(tm);tm=setTimeout(()=>kvSet('draft',$('#in').value).catch(e=>toast('草稿保存失败：'+e.message,1)),400)};
+document.addEventListener('visibilitychange',()=>{if(db&&document.hidden)kvSet('draft',$('#in').value).catch(()=>{})});
+$('#ex').onclick=()=>{$('#in').value=($('#in').value.trim()?$('#in').value.trim()+'\n\n':'')+SAMPLE;$('#in').oninput()};
+$('#cp').onclick=()=>navigator.clipboard.writeText(GPT).then(()=>toast('已复制，去粘贴给 ChatGPT 吧'),()=>{$('#res').innerHTML='<p class="muted">自动复制失败，请长按下面的文字全选后手动复制：</p><textarea readonly id="pt"></textarea>';$('#pt').value=GPT;$('#pt').select()});
+const nm=r=>r.d?(r.d.display||r.d.headword||r.d.id||''):'';
+$('#go').onclick=async()=>{const text=$('#in').value;if(!text.trim())return toast('输入框是空的',1);
+ const{res,stray}=parseAll(text),ex=new Set(C.map(c=>c.card_id)),seen=new Set();
+ res.forEach(r=>{if(r.d&&r.d.id){if(seen.has(r.d.id))r.E.push('ID “'+r.d.id+'” 在这次粘贴的文字里出现了不止一次');seen.add(r.d.id)}r.ok=!r.E.length;r.dup=r.ok&&ex.has(r.d.id)});
+ const dups=res.filter(r=>r.dup);
+ if(dups.length&&!confirm('有 '+dups.length+' 张卡片的 ID 之前已经保存过：'+dups.map(r=>r.d.id).join('、')+'\n\n确定 = 用新内容替换旧内容\n取消 = 跳过这几张，保留旧的'))dups.forEach(r=>{r.ok=false;r.skip=true});
+ const old=new Map(C.map(c=>[c.card_id,c])),t=now();
+ const recs=res.filter(r=>r.ok).map(r=>{const o=old.get(r.d.id);return{card_id:r.d.id,raw:r.raw,data:r.d,created:o?o.created:t,modified:t,version:o?o.version+1:1,exported:false,exportedAt:null}});
+ if(recs.length)try{await putMany(recs)}catch(e){return toast('保存失败：'+e.message+'。卡片没有保存，输入框里的内容还在，请不要关闭。',1)}
+ const bad=res.filter(r=>!r.ok&&!r.skip),h=[];
+ h.push(`<div class="cd ${bad.length||stray.length?'bad':''}"><b>${recs.length?'✔ 已保存 '+recs.length+' 张':'没有卡片被保存'}${bad.length?'　✖ '+bad.length+' 张有问题':''}</b></div>`);
+ if(!res.length)h.push('<div class="cd bad"><div class="is error">✖ 没有找到 ===PALI_CARD_V1=== 开始标记，请检查粘贴的内容。</div></div>');
+ res.forEach(r=>h.push(`<div class="cd ${r.ok||r.skip?'':'bad'}"><b>第 ${r.n} 张 ${esc(nm(r))}</b>${r.ok?'<div class="is ok">✔ 已保存'+(r.dup?'（替换了旧内容）':'')+'</div>':r.skip?'<div class="is warn">已跳过（ID 已存在，保留旧内容）</div>':r.E.map(m=>`<div class="is error">✖ ${esc(m)}</div>`).join('')}</div>`));
+ if(stray.length)h.push(`<div class="cd bad"><div class="is error">✖ 有 ${stray.length} 行文字不在 ===PALI_CARD_V1=== 和 ===END=== 之间（可能漏了开始或结束标记），开头是：${esc(stray[0].slice(0,30))}</div></div>`);
+ $('#res').innerHTML=h.join('');
+ const left=bad.map(r=>r.raw).concat(stray.length?[stray.join('\n')]:[]).join('\n\n');
+ $('#in').value=left;try{await kvSet('draft',left)}catch(e){toast('草稿保存失败：'+e.message,1)}
+ await load();if(recs.length&&!left)toast('全部通过，已保存 '+recs.length+' 张')};
+
+/* ---------- 已存卡片 ---------- */
+function render(){$('#cnt').textContent='已保存 '+C.length+' 张';renderLib();renderX()}
+function renderLib(){const q=$('#q').value.trim().toLowerCase(),a=C.filter(c=>!q||[c.card_id,c.data.headword,c.data.display,c.data.meaning].join(' ').toLowerCase().includes(q));
+ $('#lc').textContent=q?'找到 '+a.length+' 张':'共 '+C.length+' 张（最新的在最上面）';
+ $('#list').innerHTML=a.slice(0,LIM).map(c=>`<div class="row" data-id="${esc(c.card_id)}"><b>${esc(c.data.display)}</b> <span class="muted">${esc(c.card_id)}</span><div>${esc(c.data.meaning)}</div></div>`).join('')||'<p class="muted">还没有卡片。到「添加」页粘贴文字即可。</p>';
+ $('#more').hidden=a.length<=LIM}
+$('#q').oninput=()=>{LIM=100;renderLib()};$('#more').onclick=()=>{LIM+=200;renderLib()};
+$('#list').onclick=e=>{const r=e.target.closest('.row');if(r)openCard(r.dataset.id)};
+function openCard(id){const c=C.find(x=>x.card_id===id);if(!c)return;CUR=c;$('#md').hidden=false;$('#mdi').innerHTML='';$('#mr').value=c.raw}
+$('#mc').onclick=()=>{$('#md').hidden=true;CUR=null};
+$('#ms').onclick=async()=>{const{res,stray}=parseAll($('#mr').value),E=[];
+ if(res.length!==1)E.push('这里必须正好是一张卡片');else{E.push(...res[0].E);if(res[0].d&&res[0].d.id!==CUR.card_id)E.push('ID 不能修改（原 ID：'+CUR.card_id+'）。要用新 ID，请到「添加」页新建。')}
+ if(stray.length)E.push('有多余文字不在标记之间');
+ if(E.length){$('#mdi').innerHTML=`<div class="cd bad">${E.map(m=>`<div class="is error">✖ ${esc(m)}</div>`).join('')}</div>`;return}
+ CUR.raw=res[0].raw;CUR.data=res[0].d;CUR.version++;CUR.modified=now();CUR.exported=false;
+ try{await putMany([CUR]);$('#mdi').innerHTML='<div class="cd"><div class="is ok">✔ 已保存</div></div>';await load()}catch(e){toast('保存失败：'+e.message,1)}};
+$('#mdl').onclick=async()=>{if(!confirm('确定删除「'+CUR.data.display+'」？删除后无法恢复（除非你有备份）。'))return;
+ try{await tx('cards','readwrite',s=>{s.delete(CUR.card_id)});$('#mc').click();await load();toast('已删除')}catch(e){toast('删除失败：'+e.message,1)}};
+
+/* ---------- 导出 ---------- */
+function renderX(){kvGet('lastExport').then(v=>{const n=C.filter(c=>!c.exported).length;$('#xinfo').textContent='将导出全部 '+C.length+' 张卡片。上次导出：'+fmt(v)+(v?'；之后新增或修改了 '+n+' 张。':'')}).catch(()=>{})}
+function checkPkg(p){const E=[];
+ if(p.schemaVersion!==1)E.push('schemaVersion 必须为 1');
+ if(!/^[\w.-]+$/.test(p.packageId))E.push('packageId 只能用英文字母、数字、. _ -');
+ if(!/^\d+\.\d+\.\d+$/.test(p.packageVersion))E.push('版本号要写成 1.0.0 这样');
+ if(!p.cards.length)E.push('没有卡片可以导出');
+ const ids=new Set();p.cards.forEach(c=>{if(!ID_RE.test(c.id)||!c.headword)E.push('卡片 '+c.id+' 的 id 或 headword 不合规');if(ids.has(c.id))E.push('重复的 ID：'+c.id);ids.add(c.id)});return E}
+function dl(name,obj){const u=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+const showX=(cls,arr)=>$('#xr').innerHTML=`<div class="cd ${cls}">${arr.join('')}</div>`;
+$('#xd').onclick=async()=>{const id=$('#xid').value.trim(),v=$('#xv').value.trim();kvSet('xcfg',{id,v}).catch(()=>{});
+ const E=[],cards=[];[...C].reverse().forEach(c=>{const r=parseAll(c.raw);const x=r.res[0];if(r.res.length!==1||x.E.length)E.push('卡片 '+c.card_id+' 现在检查不通过：'+((x&&x.E[0])||'无法解析'));else cards.push(x.d)});
+ const pkg={schemaVersion:1,packageId:id,packageVersion:v,title:'Pāli vocabulary',language:'pi',description:'',cards};E.push(...checkPkg(pkg));
+ if(E.length)return showX('bad',E.map(m=>`<div class="is error">✖ ${esc(m)}</div>`));
+ const have=new Set(cards.map(c=>c.id)),miss=[];cards.forEach(c=>c.relations.forEach(r=>{if(!have.has(r.targetId)&&!miss.includes(r.targetId))miss.push(r.targetId)}));
+ if(miss.length&&!confirm('这 '+miss.length+' 个关联词还没有对应的卡片：\n'+miss.slice(0,10).join('、')+(miss.length>10?' 等':'')+'\n\n导入后这些关联会指向不存在的词。仍然导出吗？'))return;
+ const name=id+'-v'+v+'.json',t=now();dl(name,pkg);
+ try{C.forEach(c=>{c.exported=true;c.exportedAt=t});await putMany(C);await kvSet('lastExport',t)}catch(e){toast('导出记录保存失败：'+e.message,1)}
+ showX('',['<div class="is ok">✔ 已生成 '+esc(name)+'（'+cards.length+' 张卡片，格式检查通过）</div>','<div class="muted">文件在手机的「下载」文件夹里。到巴利学习 App 点「导入词汇」选择它。</div>',miss.length?'<div class="is warn">提示：'+miss.length+' 个关联词暂无卡片。</div>':'']);renderX()};
+$('#bk').onclick=()=>{dl('pali-card-backup-'+now().slice(0,10)+'.json',{format:'PALI_CARD_STUDIO_BACKUP',version:2,exportedAt:now(),cards:C});toast('备份已生成，请把下载的文件保存好')};
+$('#rb').onclick=()=>$('#rf').click();
+$('#rf').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+ try{const j=JSON.parse(await f.text());if(j.format!=='PALI_CARD_STUDIO_BACKUP'||!Array.isArray(j.cards))throw new Error('这不是本 App 的备份文件');
+  const bad=j.cards.filter(c=>!c.card_id||!c.data||typeof c.raw!=='string');if(bad.length)throw new Error(bad.length+' 张卡片损坏，已停止恢复');
+  const ex=new Set(C.map(c=>c.card_id)),add=j.cards.filter(c=>!ex.has(c.card_id));
+  if(!confirm('备份里有 '+j.cards.length+' 张卡片。\n将新增 '+add.length+' 张；其余 '+(j.cards.length-add.length)+' 张 ID 已存在，会保留你现在的版本，不覆盖。\n继续吗？'))return;
+  await putMany(add);await load();toast('已恢复 '+add.length+' 张卡片')}catch(x){toast('恢复失败：'+x.message,1)}};
+
+/* ---------- 导航 / 启动 ---------- */
+$$('nav button').forEach(b=>b.onclick=()=>{$$('nav button').forEach(x=>x.classList.toggle('on',x===b));$$('.pg').forEach(p=>p.classList.toggle('on',p.id==='p-'+b.dataset.p));render()});
+(async()=>{try{db=await open();navigator.storage&&navigator.storage.persist&&navigator.storage.persist();
+ $('#in').value=(await kvGet('draft'))||'';const x=(await kvGet('xcfg'))||{};$('#xid').value=x.id||'pali-basic-001';$('#xv').value=x.v||'1.0.0';await load()}
+ catch(e){toast('本地数据库无法打开：'+e.message+'。请不要在隐私/无痕模式使用。',1)}})();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>                                                 
