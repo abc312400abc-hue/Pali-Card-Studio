@@ -100,7 +100,7 @@ ref: 无
 @CONTENT_STATUS: draft
 @ACTIVE: true
 ===END===`;
-const GPT=`请严格按下面的 PALI_CARD_V1 格式输出巴利语词汇卡片。每张卡片一个完整区块；不要输出区块以外的任何文字，不要用代码块包裹。
+const GPT=`请严格按下面的 PALI_CARD_V1 格式输出巴利语词汇卡片。请把所有卡片放进同一个代码块（用三个反引号包住）里输出，代码块之外不要有任何文字。每张卡片一个完整区块。
 规则：
 1. 区块以 ===PALI_CARD_V1=== 开始，以 ===END=== 结束，各占一行。
 2. 字段名独占行首，写成「@字段名: 内容」，内容可以多行、多段。必须包含这些字段：ID、HEADWORD、DISPLAY、MEANING、PART_OF_SPEECH、CORE、EXPLANATION、STORY、MORPHOLOGY、SENSES、USAGE、RELATIONS、PROVENANCE、CONTENT_STATUS、ACTIVE（可选：CATEGORY、HINT）。
@@ -118,7 +118,7 @@ const GPT=`请严格按下面的 PALI_CARD_V1 格式输出巴利语词汇卡片�
 
 /*PARSER*/
 function splitBlocks(text){const out=[],stray=[];let cur=null;
- text.replace(/\r\n?/g,'\n').split('\n').forEach(ln=>{const t=ln.trim();
+ text.replace(/\r\n?/g,'\n').replace(/[ \t]*(===PALI_CARD_V1===|===END===)[ \t]*/g,'\n$1\n').replace(new RegExp('[ \\t]+(@(?:'+FIELDS.join('|')+'):)','g'),'\n$1').split('\n').forEach(ln=>{const t=ln.trim();
   if(/^`{3}/.test(t))return;
   if(t==='===PALI_CARD_V1==='){if(cur){cur.err='缺少结束标记 ===END===（下一张卡片的开始标记来得太早）';out.push(cur)}cur={lines:[]};return}
   if(t==='===END==='){if(cur){out.push(cur);cur=null}else stray.push('===END===');return}
